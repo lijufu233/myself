@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTA 楼市底部信号追踪器 — Oakville & Mississauga</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --blue:#378ADD; --coral:#D85A30; --green:#639922; --amber:#EF9F27; --red:#E24B4A;
+  --gray:#888780; --purple:#7F77DD; --teal:#1D9E75;
+  --bg:#f5f4f0; --surface:#fff; --border:rgba(0,0,0,0.09);
+  --text:#2c2c2a; --text2:#5f5e5a; --text3:#888780;
+  --r:12px; --r-sm:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6}
+a{color:var(--blue);text-decoration:none}
+.container{max-width:1200px;margin:0 auto;padding:0 20px}
+
+/* Header */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 0;position:sticky;top:0;z-index:100}
+.header-inner{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.logo{font-size:16px;font-weight:600;color:var(--text)}
+.logo span{color:var(--red)}
+.updated{font-size:12px;color:var(--text3);margin-left:auto}
+.city-toggle{display:flex;gap:4px;background:var(--bg);border-radius:var(--r-sm);padding:3px}
+.city-btn{padding:5px 14px;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;background:transparent;color:var(--text2);transition:all .15s}
+.city-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+/* Signal Panel */
+.signal-panel{background:var(--surface);border-radius:var(--r);border:1px solid var(--border);padding:20px 24px;margin:20px 0 16px}
+.signal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px}
+.signal-title{font-size:13px;font-weight:600;color:var(--text);text-transform:uppercase;letter-spacing:.04em}
+.score-pill{font-size:13px;font-weight:600;padding:4px 14px;border-radius:20px}
+.score-0,.score-1{background:#FCEBEB;color:#A32D2D}
+.score-2,.score-3{background:#FAEEDA;color:#854F0B}
+.score-4,.score-5{background:#EAF3DE;color:#3B6D11}
+.signals{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+@media(max-width:600px){.signals{grid-template-columns:1fr 1fr}}
+.sig{border-radius:var(--r-sm);padding:12px;text-align:center;cursor:default}
+.sig-icon{font-size:18px;margin-bottom:4px}
+.sig-name{font-size:11px;font-weight:500;margin-bottom:2px}
+.sig-val{font-size:15px;font-weight:600}
+.sig-note{font-size:10px;margin-top:2px;opacity:.8}
+.sig-red{background:#FCEBEB;color:#A32D2D}
+.sig-amber{background:#FAEEDA;color:#854F0B}
+.sig-green{background:#EAF3DE;color:#3B6D11}
+
+/* Metric Cards */
+.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px}
+@media(max-width:700px){.metrics{grid-template-columns:repeat(2,1fr)}}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.metric-label{font-size:11px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.metric-val{font-size:22px;font-weight:600;color:var(--text)}
+.metric-chg{font-size:12px;margin-top:3px}
+.chg-up{color:var(--green)} .chg-dn{color:var(--red)} .chg-neu{color:var(--gray)}
+
+/* Charts */
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:800px){.charts{grid-template-columns:1fr}}
+.charts-full{margin-bottom:16px}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px}
+.chart-title{font-size:13px;font-weight:600;margin-bottom:4px;color:var(--text)}
+.chart-sub{font-size:11px;color:var(--text3);margin-bottom:16px}
+.chart-wrap{position:relative}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px}
+.leg-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.leg-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+/* Zone labels on charts */
+.zone-label{font-size:10px;color:var(--text3)}
+
+/* Bottom verdict */
+.verdict{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px 24px;margin-bottom:16px}
+.verdict-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+@media(max-width:600px){.verdict-grid{grid-template-columns:1fr}}
+.v-item{padding:12px;border-radius:var(--r-sm);font-size:12px;line-height:1.6}
+.v-label{font-weight:600;margin-bottom:4px;font-size:13px}
+.v-red{background:#FCEBEB;color:#791F1F}
+.v-amber{background:#FAEEDA;color:#633806}
+.v-blue{background:#E6F1FB;color:#0C447C}
+
+/* Footer */
+.footer{padding:24px 0;border-top:1px solid var(--border);margin-top:8px}
+.footer-inner{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--text3)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo">GTA 楼市底部信号 <span>追踪器</span></div>
+      <div class="city-toggle">
+        <button class="city-btn active" onclick="setCity('both')" id="btn-both">两市对比</button>
+        <button class="city-btn" onclick="setCity('oakville')" id="btn-oakville">Oakville</button>
+        <button class="city-btn" onclick="setCity('mississauga')" id="btn-mississauga">Mississauga</button>
+      </div>
+      <div class="updated" id="last-updated">加载中...</div>
+    </div>
+  </div>
+</div>
+
+<div class="container" style="padding-top:4px;padding-bottom:32px">
+
+  <!-- Signal Panel -->
+  <div class="signal-panel">
+    <div class="signal-header">
+      <div class="signal-title" id="sig-city-label">Oakville — 底部信号评估</div>
+      <div class="score-pill score-1" id="score-pill">信号 1/5 亮起</div>
+    </div>
+    <div class="signals">
+      <div class="sig sig-red" id="sig-snlr">
+        <div class="sig-name">① SNLR 销新比</div>
+        <div class="sig-val" id="sv-snlr">—</div>
+        <div class="sig-note">触底区 &lt;40%</div>
+      </div>
+      <div class="sig sig-red" id="sig-moi">
+        <div class="sig-name">② MOI 库存月数</div>
+        <div class="sig-val" id="sv-moi">—</div>
+        <div class="sig-note">反弹需 &lt;3月</div>
+      </div>
+      <div class="sig sig-amber" id="sig-price">
+        <div class="sig-name">③ 价格月环比</div>
+        <div class="sig-val" id="sv-price">—</div>
+        <div class="sig-note">需连续2月+</div>
+      </div>
+      <div class="sig sig-amber" id="sig-dom">
+        <div class="sig-name">④ 在市天数 DOM</div>
+        <div class="sig-val" id="sv-dom">—</div>
+        <div class="sig-note">底部区 &gt;30天</div>
+      </div>
+      <div class="sig sig-red" id="sig-boc">
+        <div class="sig-name">⑤ BoC 利率</div>
+        <div class="sig-val" id="sv-boc">—</div>
+        <div class="sig-note">按兵不动5月</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metric Cards -->
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">均价</div>
+      <div class="metric-val" id="m-price">—</div>
+      <div class="metric-chg" id="m-price-chg">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">SNLR</div>
+      <div class="metric-val" id="m-snlr">—</div>
+      <div class="metric-chg" id="m-snlr-chg">vs 上月</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">MOI 库存月数</div>
+      <div class="metric-val" id="m-moi">—</div>
+      <div class="metric-chg" id="m-moi-chg">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">平均在市天数</div>
+      <div class="metric-val" id="m-dom">—</div>
+      <div class="metric-chg" id="m-dom-chg">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">BoC 政策利率</div>
+      <div class="metric-val" id="m-boc">—</div>
+      <div class="metric-chg" id="m-boc-chg">—</div>
+    </div>
+  </div>
+
+  <!-- Price Chart (full width) -->
+  <div class="charts-full">
+    <div class="chart-card">
+      <div class="chart-title">均价走势（含 BoC 利率叠加）</div>
+      <div class="chart-sub">左轴：均价（万加元）· 右轴：BoC 政策利率 (%)</div>
+      <div class="legend" id="price-legend"></div>
+      <div class="chart-wrap" style="height:280px"><canvas id="priceChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- SNLR + MOI Charts -->
+  <div class="charts">
+    <div class="chart-card">
+      <div class="chart-title">SNLR 销售/新挂牌比</div>
+      <div class="chart-sub">绿线=40% 买方/均衡分界 · 红线=60% 卖方市场</div>
+      <div class="legend" id="snlr-legend"></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="snlrChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">MOI 月度库存</div>
+      <div class="chart-sub">绿线=3月（健康）· 红线=5月（买方市场）</div>
+      <div class="legend" id="moi-legend"></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="moiChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- DOM + Macro Charts -->
+  <div class="charts">
+    <div class="chart-card">
+      <div class="chart-title">平均在市天数（DOM）</div>
+      <div class="chart-sub">天数越长表示买家观望情绪越浓</div>
+      <div class="legend" id="dom-legend"></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="domChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">宏观指标：利率 + 失业率</div>
+      <div class="chart-sub">左轴：BoC 利率(%) · 右轴：加拿大失业率(%)</div>
+      <div class="legend">
+        <span class="leg-item"><span class="leg-dot" style="background:#E24B4A"></span>BoC 利率</span>
+        <span class="leg-item"><span class="leg-dot" style="background:#854F0B"></span>失业率</span>
+      </div>
+      <div class="chart-wrap" style="height:220px"><canvas id="macroChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Bottom Verdict -->
+  <div class="verdict">
+    <div class="signal-title" style="margin-bottom:14px">综合研判</div>
+    <div class="verdict-grid">
+      <div class="v-item v-red" id="v1">
+        <div class="v-label">❌ SNLR &amp; MOI</div>
+        当前SNLR仍在买方区（&lt;40%），MOI高于5个月——供过于求格局未改变。
+      </div>
+      <div class="v-item v-amber" id="v2">
+        <div class="v-label">⚠️ 价格 &amp; DOM</div>
+        月环比出现微弱正信号，但同比仍下跌7-8%；DOM有所收窄但仍偏高。
+      </div>
+      <div class="v-item v-blue" id="v3">
+        <div class="v-label">🔍 BoC 利率</div>
+        连续5个月按兵不动（2.25%）；降息预期不明朗，加息风险约24%（Q2）。
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <div class="container">
+    <div class="footer-inner">
+      <span>数据来源：Bank of Canada Valet API · Statistics Canada LFS · TRREB Monthly Reports · Wahi.com</span>
+      <span>每周日自动更新 · <a href="https://github.com/your-username/gta-market-tracker" target="_blank">GitHub 源码</a></span>
+    </div>
+  </div>
+</div>
+
+<script>
+let DATA = null;
+let currentCity = 'both';
+let charts = {};
+
+async function loadData() {
+  try {
+    const r = await fetch('data/market_data.json');
+    DATA = await r.json();
+  } catch(e) {
+    console.error('Failed to load data:', e);
+    document.getElementById('last-updated').textContent = '数据加载失败';
+    return;
+  }
+  document.getElementById('last-updated').textContent = '数据更新：' + DATA.metadata.last_updated;
+  initAllCharts();
+  updateDashboard();
+}
+
+function fmt(n) { return n >= 1e6 ? '$' + (n/1e6).toFixed(2) + 'M' : '$' + Math.round(n/1000) + 'K'; }
+function fmtPct(n) { return (n*100).toFixed(1) + '%'; }
+function fmtChg(now, prev, isPrice) {
+  if (!prev) return '';
+  const delta = (now - prev) / Math.abs(prev);
+  const sign = delta > 0 ? '+' : '';
+  const cls = isPrice ? (delta > 0 ? 'chg-up' : 'chg-dn') : '';
+  return `<span class="${cls}">${sign}${(delta*100).toFixed(1)}% vs 上月</span>`;
+}
+
+function getLatest(city) {
+  const rows = DATA.monthly;
+  const last = rows[rows.length - 1];
+  const prev = rows[rows.length - 2];
+  return { last, prev, city: last[city], prevCity: prev[city] };
+}
+
+function getCombined(city1, city2) {
+  const rows = DATA.monthly;
+  const last = rows[rows.length - 1];
+  const prev = rows[rows.length - 2];
+  const avg = (a, b, k) => (last[a][k] + last[b][k]) / 2;
+  return {
+    avg_price: avg(city1, city2, 'avg_price'),
+    snlr: avg(city1, city2, 'snlr'),
+    moi: avg(city1, city2, 'moi'),
+    dom: avg(city1, city2, 'dom'),
+    boc: last.boc_rate,
+    prevSnlr: (prev[city1].snlr + prev[city2].snlr) / 2,
+    prevMoi: (prev[city1].moi + prev[city2].moi) / 2,
+    prevDom: (prev[city1].dom + prev[city2].dom) / 2,
+    prevPrice: (prev[city1].avg_price + prev[city2].avg_price) / 2,
+  };
+}
+
+function getSignalClass(sigName, val) {
+  if (sigName === 'snlr') {
+    if (val < 0.40) return 'sig-red';
+    if (val < 0.55) return 'sig-amber';
+    return 'sig-green';
+  }
+  if (sigName === 'moi') {
+    if (val > 5) return 'sig-red';
+    if (val > 3) return 'sig-amber';
+    return 'sig-green';
+  }
+  if (sigName === 'price') {
+    if (val > 0.01) return 'sig-green';
+    if (val > -0.005) return 'sig-amber';
+    return 'sig-red';
+  }
+  if (sigName === 'dom') {
+    if (val > 30) return 'sig-red';
+    if (val > 22) return 'sig-amber';
+    return 'sig-green';
+  }
+  if (sigName === 'boc') {
+    return 'sig-red'; // still on hold, no imminent cut
+  }
+  return 'sig-gray';
+}
+
+function countGreenSignals(snlr, moi, priceMom, dom, boc) {
+  let count = 0;
+  if (snlr >= 0.50) count++;
+  if (moi <= 3.0) count++;
+  if (priceMom > 0.005) count++;
+  if (dom <= 22) count++;
+  if (boc < 2.0) count++;
+  return count;
+}
+
+function updateDashboard() {
+  const rows = DATA.monthly;
+  let snlr, moi, price, prevPrice, dom, boc;
+
+  if (currentCity === 'both') {
+    const c = getCombined('oakville', 'mississauga');
+    snlr = c.snlr; moi = c.moi; price = c.avg_price; prevPrice = c.prevPrice; dom = c.dom; boc = c.boc;
+    document.getElementById('sig-city-label').textContent = '两市综合 — 底部信号评估';
+    document.getElementById('m-price').textContent = fmt(price);
+  } else {
+    const { last, prev, city: cd, prevCity: pd } = getLatest(currentCity);
+    snlr = cd.snlr; moi = cd.moi; price = cd.avg_price; prevPrice = pd.avg_price; dom = cd.dom; boc = last.boc_rate;
+    document.getElementById('sig-city-label').textContent = (currentCity === 'oakville' ? 'Oakville' : 'Mississauga') + ' — 底部信号评估';
+    document.getElementById('m-price').textContent = fmt(price);
+  }
+
+  const priceMom = (price - prevPrice) / prevPrice;
+
+  // Update signals
+  const sigs = [
+    { id: 'snlr', val: fmtPct(snlr), key: 'snlr', raw: snlr },
+    { id: 'moi', val: moi.toFixed(1) + '月', key: 'moi', raw: moi },
+    { id: 'price', val: (priceMom >= 0 ? '+' : '') + fmtPct(priceMom), key: 'price', raw: priceMom },
+    { id: 'dom', val: Math.round(dom) + ' 天', key: 'dom', raw: dom },
+    { id: 'boc', val: boc.toFixed(2) + '%', key: 'boc', raw: boc },
+  ];
+
+  sigs.forEach(s => {
+    const cls = getSignalClass(s.key, s.raw);
+    const el = document.getElementById('sig-' + s.id);
+    el.className = 'sig ' + cls;
+    document.getElementById('sv-' + s.id).textContent = s.val;
+  });
+
+  const score = countGreenSignals(snlr, moi, priceMom, dom, boc);
+  const pill = document.getElementById('score-pill');
+  pill.textContent = '信号 ' + score + '/5 亮起';
+  pill.className = 'score-pill score-' + score;
+
+  // Update metric cards
+  document.getElementById('m-snlr').textContent = fmtPct(snlr);
+  document.getElementById('m-moi').textContent = moi.toFixed(1) + ' 月';
+  document.getElementById('m-dom').textContent = Math.round(dom) + ' 天';
+  document.getElementById('m-boc').textContent = boc.toFixed(2) + '%';
+  document.getElementById('m-price-chg').innerHTML = fmtChg(price, prevPrice, true);
+  document.getElementById('m-snlr-chg').innerHTML = '目标 >40% 均衡';
+  document.getElementById('m-moi-chg').innerHTML = '目标 <3月 健康';
+  document.getElementById('m-dom-chg').innerHTML = '目标 <22天 反弹';
+  document.getElementById('m-boc-chg').innerHTML = '按兵不动 · 连续5月';
+}
+
+function getLabels() {
+  return DATA.monthly.map(r => r.month.slice(0, 7));
+}
+function getCityData(key, city) {
+  return DATA.monthly.map(r => r[city] ? r[city][key] : null);
+}
+function getMacroData(key) {
+  return DATA.monthly.map(r => r[key]);
+}
+
+const COLORS = {
+  oakville: '#378ADD', mississauga: '#D85A30',
+  green: '#639922', amber: '#EF9F27', red: '#E24B4A',
+  boc: '#E24B4A', unemp: '#854F0B', gray: '#888780'
+};
+
+const GRID = 'rgba(0,0,0,0.05)';
+const TICK = '#888780';
+
+function baseOpts(titleText) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+    scales: {
+      x: { ticks: { color: TICK, font: { size: 10 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 12 }, grid: { color: GRID } },
+      y: { ticks: { color: TICK, font: { size: 11 } }, grid: { color: GRID } }
+    }
+  };
+}
+
+function makeLegend(id, items) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = items.map(i =>
+    `<span class="leg-item"><span class="leg-dot" style="background:${i.color}"></span>${i.label}</span>`
+  ).join('');
+}
+
+function initAllCharts() {
+  const labels = getLabels();
+  const okPrice = getCityData('avg_price', 'oakville').map(v => v ? +(v/10000).toFixed(1) : null);
+  const msPrice = getCityData('avg_price', 'mississauga').map(v => v ? +(v/10000).toFixed(1) : null);
+  const bocRate = getMacroData('boc_rate');
+  const okSnlr = getCityData('snlr', 'oakville').map(v => v ? +(v*100).toFixed(1) : null);
+  const msSnlr = getCityData('snlr', 'mississauga').map(v => v ? +(v*100).toFixed(1) : null);
+  const okMoi = getCityData('moi', 'oakville');
+  const msMoi = getCityData('moi', 'mississauga');
+  const okDom = getCityData('dom', 'oakville');
+  const msDom = getCityData('dom', 'mississauga');
+  const unemp = getMacroData('unemployment');
+  const n = labels.length;
+
+  // ── Price Chart ──────────────────────────────────────────────
+  if (charts.price) charts.price.destroy();
+  const pctx = document.getElementById('priceChart').getContext('2d');
+  charts.price = new Chart(pctx, {
+    data: {
+      labels,
+      datasets: [
+        { type:'line', label:'Oakville 均价(万)', data: okPrice, borderColor: COLORS.oakville, backgroundColor: 'rgba(55,138,221,.08)', borderWidth: 2, tension: .3, yAxisID:'y', pointRadius:2, fill: true },
+        { type:'line', label:'Mississauga 均价(万)', data: msPrice, borderColor: COLORS.mississauga, backgroundColor: 'rgba(216,90,48,.06)', borderWidth: 2, tension: .3, yAxisID:'y', pointRadius:2, fill: true },
+        { type:'line', label:'BoC 利率(%)', data: bocRate, borderColor: COLORS.boc, borderWidth: 1.5, tension: .2, yAxisID:'y2', pointRadius: 2, borderDash: [4,3] },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { mode:'index', intersect:false } },
+      scales: {
+        x: { ticks: { color: TICK, font:{size:10}, maxRotation:45, autoSkip:true, maxTicksLimit:12 }, grid: { color:GRID } },
+        y: { position:'left', ticks: { color: TICK, font:{size:10}, callback: v => '$'+v+'万' }, grid: { color:GRID } },
+        y2: { position:'right', min:0, max:6, ticks: { color: COLORS.boc, font:{size:10}, callback: v => v+'%' }, grid: { display:false } }
+      }
+    }
+  });
+  makeLegend('price-legend', [
+    { color: COLORS.oakville, label: 'Oakville 均价' },
+    { color: COLORS.mississauga, label: 'Mississauga 均价' },
+    { color: COLORS.boc, label: 'BoC 利率（右轴）' },
+  ]);
+
+  // ── SNLR Chart ───────────────────────────────────────────────
+  if (charts.snlr) charts.snlr.destroy();
+  const sctx = document.getElementById('snlrChart').getContext('2d');
+  const zoneArr40 = Array(n).fill(40);
+  const zoneArr60 = Array(n).fill(60);
+  charts.snlr = new Chart(sctx, {
+    data: {
+      labels,
+      datasets: [
+        { type:'line', label:'Oakville SNLR(%)', data:okSnlr, borderColor:COLORS.oakville, borderWidth:2, tension:.3, pointRadius:2, fill:false },
+        { type:'line', label:'Mississauga SNLR(%)', data:msSnlr, borderColor:COLORS.mississauga, borderWidth:2, tension:.3, pointRadius:2, fill:false },
+        { type:'line', label:'均衡线 40%', data:zoneArr40, borderColor:COLORS.green, borderWidth:1, borderDash:[5,4], pointRadius:0 },
+        { type:'line', label:'卖方线 60%', data:zoneArr60, borderColor:COLORS.red, borderWidth:1, borderDash:[5,4], pointRadius:0 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{mode:'index',intersect:false} },
+      scales:{
+        x:{ ticks:{color:TICK,font:{size:10},maxRotation:45,autoSkip:true,maxTicksLimit:8}, grid:{color:GRID} },
+        y:{ min:20, max:80, ticks:{color:TICK,font:{size:10},callback:v=>v+'%'}, grid:{color:GRID} }
+      }
+    }
+  });
+  makeLegend('snlr-legend', [
+    { color: COLORS.oakville, label: 'Oakville' },
+    { color: COLORS.mississauga, label: 'Mississauga' },
+    { color: COLORS.green, label: '40% 均衡线' },
+  ]);
+
+  // ── MOI Chart ────────────────────────────────────────────────
+  if (charts.moi) charts.moi.destroy();
+  const mctx = document.getElementById('moiChart').getContext('2d');
+  const zone3 = Array(n).fill(3);
+  const zone5 = Array(n).fill(5);
+  charts.moi = new Chart(mctx, {
+    data: {
+      labels,
+      datasets: [
+        { type:'line', label:'Oakville MOI', data:okMoi, borderColor:COLORS.oakville, borderWidth:2, tension:.3, pointRadius:2, fill:false },
+        { type:'line', label:'Mississauga MOI', data:msMoi, borderColor:COLORS.mississauga, borderWidth:2, tension:.3, pointRadius:2, fill:false },
+        { type:'line', label:'健康线 3月', data:zone3, borderColor:COLORS.green, borderWidth:1, borderDash:[5,4], pointRadius:0 },
+        { type:'line', label:'买方线 5月', data:zone5, borderColor:COLORS.red, borderWidth:1, borderDash:[5,4], pointRadius:0 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{mode:'index',intersect:false} },
+      scales:{
+        x:{ ticks:{color:TICK,font:{size:10},maxRotation:45,autoSkip:true,maxTicksLimit:8}, grid:{color:GRID} },
+        y:{ min:0, ticks:{color:TICK,font:{size:10},callback:v=>v+'月'}, grid:{color:GRID} }
+      }
+    }
+  });
+  makeLegend('moi-legend', [
+    { color: COLORS.oakville, label: 'Oakville' },
+    { color: COLORS.mississauga, label: 'Mississauga' },
+    { color: COLORS.red, label: '5月 买方市场线' },
+  ]);
+
+  // ── DOM Chart ────────────────────────────────────────────────
+  if (charts.dom) charts.dom.destroy();
+  const dctx = document.getElementById('domChart').getContext('2d');
+  charts.dom = new Chart(dctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label:'Oakville DOM', data:okDom, backgroundColor:'rgba(55,138,221,.7)', borderRadius:3 },
+        { label:'Mississauga DOM', data:msDom, backgroundColor:'rgba(216,90,48,.7)', borderRadius:3 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{mode:'index',intersect:false} },
+      scales:{
+        x:{ ticks:{color:TICK,font:{size:10},maxRotation:45,autoSkip:true,maxTicksLimit:8}, grid:{color:GRID} },
+        y:{ ticks:{color:TICK,font:{size:10},callback:v=>v+'天'}, grid:{color:GRID} }
+      }
+    }
+  });
+  makeLegend('dom-legend', [
+    { color: '#378ADD', label: 'Oakville' },
+    { color: '#D85A30', label: 'Mississauga' },
+  ]);
+
+  // ── Macro Chart ──────────────────────────────────────────────
+  if (charts.macro) charts.macro.destroy();
+  const mactx = document.getElementById('macroChart').getContext('2d');
+  charts.macro = new Chart(mactx, {
+    data: {
+      labels,
+      datasets: [
+        { type:'line', label:'BoC 利率(%)', data:bocRate, borderColor:COLORS.boc, borderWidth:2, tension:.2, pointRadius:2, fill:false, yAxisID:'yl' },
+        { type:'line', label:'失业率(%)', data:unemp, borderColor:COLORS.unemp, borderWidth:2, tension:.3, pointRadius:2, fill:false, borderDash:[4,3], yAxisID:'yr' },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{mode:'index',intersect:false} },
+      scales:{
+        x:{ ticks:{color:TICK,font:{size:10},maxRotation:45,autoSkip:true,maxTicksLimit:8}, grid:{color:GRID} },
+        yl:{ position:'left', min:1, max:6, ticks:{color:COLORS.boc,font:{size:10},callback:v=>v+'%'}, grid:{color:GRID} },
+        yr:{ position:'right', min:5, max:8, ticks:{color:COLORS.unemp,font:{size:10},callback:v=>v+'%'}, grid:{display:false} }
+      }
+    }
+  });
+}
+
+function setCity(city) {
+  currentCity = city;
+  ['both','oakville','mississauga'].forEach(c => {
+    document.getElementById('btn-'+c).classList.toggle('active', c === city);
+  });
+  updateDashboard();
+  // Highlight datasets based on city selection
+  updateChartHighlight();
+}
+
+function updateChartHighlight() {
+  if (!charts.price) return;
+  const showBoth = currentCity === 'both';
+  const showOak = showBoth || currentCity === 'oakville';
+  const showMs = showBoth || currentCity === 'mississauga';
+  [charts.price, charts.snlr, charts.moi].forEach(ch => {
+    if (!ch || !ch.data.datasets) return;
+    ch.data.datasets[0].borderWidth = showOak ? 2 : 0.5;
+    ch.data.datasets[0].borderColor = showOak ? COLORS.oakville : 'rgba(55,138,221,.2)';
+    if (ch.data.datasets[1]) {
+      ch.data.datasets[1].borderWidth = showMs ? 2 : 0.5;
+      ch.data.datasets[1].borderColor = showMs ? COLORS.mississauga : 'rgba(216,90,48,.2)';
+    }
+    ch.update('none');
+  });
+  if (charts.dom) {
+    charts.dom.data.datasets[0].backgroundColor = showOak ? 'rgba(55,138,221,.7)' : 'rgba(55,138,221,.15)';
+    charts.dom.data.datasets[1].backgroundColor = showMs ? 'rgba(216,90,48,.7)' : 'rgba(216,90,48,.15)';
+    charts.dom.update('none');
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
