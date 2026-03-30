@@ -14,10 +14,14 @@
     {
       "month": "2026-03",
       "boc_rate": 2.25,
-      "five_yr_bond": null,
+      "five_yr_bond": 3.6,
       "unemployment": null,
-      "oakville": {},
-      "mississauga": {}
+      "oakville": {
+        "_estimated": true
+      },
+      "mississauga": {
+        "_estimated": true
+      }
     }
   ]
 }
